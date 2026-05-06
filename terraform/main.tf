@@ -7,3 +7,9 @@ module "sqs" {
   source      = "./modules/sqs"
   environment = var.environment
 }
+
+module "vpc" {
+  source      = "./modules/vpc"
+  environment = var.environment
+  region      = var.aws_region
+}
