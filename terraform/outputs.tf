@@ -12,3 +12,8 @@ output "sqs_dlq_arn" {
   description = "ARN de la cola SQS de mensajes fallidos (DLQ)"
   value       = aws_sqs_queue.dlq.arn
 }
+
+output "api_gateway_url" {
+  description = "URL base del API Gateway para subir imágenes"
+  value       = module.lambda.api_gateway_url
+}
