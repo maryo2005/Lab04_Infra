@@ -6,38 +6,14 @@ variable "region" {
   type = string
 }
 
-# VPC Principal
+# 1. VPC Principal
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
-
-  tags = {
-    Name = "image-processor-vpc-${var.environment}"
-  }
 }
 
-# Internet Gateway
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-}
-
-# Subredes Públicas
-resource "aws_subnet" "public_a" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.region}a"
-  map_public_ip_on_launch = true
-}
-
-resource "aws_subnet" "public_b" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.region}b"
-  map_public_ip_on_launch = true
-}
-
-# Subredes Privadas
+# 2. Subredes Privadas (AZ-a y AZ-b)
 resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.11.0/24"
@@ -50,73 +26,22 @@ resource "aws_subnet" "private_b" {
   availability_zone = "${var.region}b"
 }
 
-# IPs Elásticas para NAT Gateways
-resource "aws_eip" "nat_a" {
-  domain = "vpc"
-}
-
-resource "aws_eip" "nat_b" {
-  domain = "vpc"
-}
-
-# NAT Gateways
-resource "aws_nat_gateway" "nat_a" {
-  allocation_id = aws_eip.nat_a.id
-  subnet_id     = aws_subnet.public_a.id
-}
-
-resource "aws_nat_gateway" "nat_b" {
-  allocation_id = aws_eip.nat_b.id
-  subnet_id     = aws_subnet.public_b.id
-}
-
-# Tablas de Enrutamiento
-resource "aws_route_table" "public" {
+# 3. Tabla de Enrutamiento Privada
+resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-}
-
-resource "aws_route_table" "private_a" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat_a.id
-  }
-}
-
-resource "aws_route_table" "private_b" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat_b.id
-  }
-}
-
-# Asociaciones de Tablas de Enrutamiento
-resource "aws_route_table_association" "pub_a" {
-  subnet_id      = aws_subnet.public_a.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "pub_b" {
-  subnet_id      = aws_subnet.public_b.id
-  route_table_id = aws_route_table.public.id
 }
 
 resource "aws_route_table_association" "priv_a" {
   subnet_id      = aws_subnet.private_a.id
-  route_table_id = aws_route_table.private_a.id
+  route_table_id = aws_route_table.private.id
 }
 
 resource "aws_route_table_association" "priv_b" {
   subnet_id      = aws_subnet.private_b.id
-  route_table_id = aws_route_table.private_b.id
+  route_table_id = aws_route_table.private.id
 }
 
-# Grupos de Seguridad
+# 4. Security Groups
 resource "aws_security_group" "upload_lambda" {
   name        = "sg-upload-lambda-${var.environment}"
   description = "Security group for upload lambda"
@@ -156,24 +81,24 @@ resource "aws_security_group" "vpce_sqs" {
   }
 }
 
-# VPC Endpoints
+# 5. VPC Endpoints
 resource "aws_vpc_endpoint" "s3" {
-  vpc_id       = aws_vpc.main.id
-  service_name = "com.amazonaws.${var.region}.s3"
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids = [aws_route_table.private_a.id, aws_route_table.private_b.id]
+  route_table_ids   = [aws_route_table.private.id]
 }
 
 resource "aws_vpc_endpoint" "sqs" {
-  vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.${var.region}.sqs"
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = [aws_subnet.private_a.id, aws_subnet.private_b.id]
-  security_group_ids = [aws_security_group.vpce_sqs.id]
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.region}.sqs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_a.id, aws_subnet.private_b.id]
+  security_group_ids  = [aws_security_group.vpce_sqs.id]
   private_dns_enabled = true
 }
 
-# Outputs necesarios para otros módulos
+# 6. Outputs
 output "vpc_id" {
   value = aws_vpc.main.id
 }
