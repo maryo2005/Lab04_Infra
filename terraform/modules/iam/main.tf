@@ -6,7 +6,7 @@ variable "sqs_arn" { type = string }
 resource "aws_iam_role" "upload_role" {
   name = "upload-lambda-role-${var.environment}"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" } }]
   })
 }
@@ -42,7 +42,7 @@ resource "aws_iam_role_policy_attachment" "upload_s3_attach" {
 resource "aws_iam_role" "crop_role" {
   name = "crop-lambda-role-${var.environment}"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "lambda.amazonaws.com" } }]
   })
 }

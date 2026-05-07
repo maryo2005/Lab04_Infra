@@ -12,7 +12,7 @@ resource "aws_sqs_queue" "main_queue" {
   visibility_timeout_seconds = 360
   message_retention_seconds  = 86400
 
-  receive_wait_time_seconds  = 20
+  receive_wait_time_seconds = 20
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
@@ -46,10 +46,10 @@ resource "aws_cloudwatch_metric_alarm" "dlq_messages_alarm" {
   namespace           = "AWS/SQS"
   period              = 60 # Period: 60 s
   statistic           = "Sum"
-  threshold           = 0  # Threshold: above 0
+  threshold           = 0 # Threshold: above 0
   alarm_description   = "Alarma que se dispara si hay mensajes estancados en la DLQ"
-  
-  alarm_actions       = [aws_sns_topic.dlq_alarms.arn]
+
+  alarm_actions = [aws_sns_topic.dlq_alarms.arn]
 
   dimensions = {
     QueueName = aws_sqs_queue.dlq.name

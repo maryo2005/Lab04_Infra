@@ -8,7 +8,7 @@ module "sqs" {
   source      = "./modules/sqs"
   environment = var.environment
   # Construimos el ARN del bucket directo para evitar dependencia circular
-  bucket_arn  = "arn:aws:s3:::image-processor-${var.environment}-images-suffix"
+  bucket_arn = "arn:aws:s3:::image-processor-${var.environment}-images-suffix"
 }
 
 module "vpc" {
@@ -16,7 +16,7 @@ module "vpc" {
   environment = var.environment
   region      = var.aws_region
 
-  bucket_arn  = "arn:aws:s3:::image-processor-${var.environment}-images-suffix"
+  bucket_arn = "arn:aws:s3:::image-processor-${var.environment}-images-suffix"
 }
 
 module "iam" {
