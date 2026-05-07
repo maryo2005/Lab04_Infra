@@ -6,6 +6,10 @@ variable "region" {
   type = string
 }
 
+variable "bucket_arn" {
+  type = string
+}
+
 # 1. VPC Principal
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -87,6 +91,15 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.${var.region}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = ["s3:GetObject", "s3:PutObject"]
+      Resource  = ["${var.bucket_arn}", "${var.bucket_arn}/*"]
+    }]
+  })
 }
 
 resource "aws_vpc_endpoint" "sqs" {

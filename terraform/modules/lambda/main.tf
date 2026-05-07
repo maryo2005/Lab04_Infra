@@ -7,6 +7,7 @@ variable "sqs_main_queue_arn" { type = string }
 variable "upload_role_arn" { type = string }
 variable "crop_role_arn" { type = string }
 
+# Empaquetado automático de código fuente
 data "archive_file" "upload_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../src/upload-lambda"
@@ -19,7 +20,7 @@ data "archive_file" "crop_zip" {
   output_path = "${path.root}/../src/crop-lambda.zip"
 }
 
-# 2. Upload Lambda
+# Funciones Lambda
 resource "aws_lambda_function" "upload_lambda" {
   function_name    = "image-processor-${var.environment}-upload"
   runtime          = "nodejs20.x"
@@ -43,7 +44,6 @@ resource "aws_lambda_function" "upload_lambda" {
   }
 }
 
-# 3. Crop Lambda
 resource "aws_lambda_function" "crop_lambda" {
   function_name    = "image-processor-${var.environment}-crop"
   runtime          = "nodejs20.x"
@@ -67,14 +67,16 @@ resource "aws_lambda_function" "crop_lambda" {
   }
 }
 
-# 4. Trigger SQS para Crop Lambda
+# Trigger de SQS para Crop Lambda
 resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   event_source_arn = var.sqs_main_queue_arn
   function_name    = aws_lambda_function.crop_lambda.arn
   batch_size       = 5
+
+  function_response_types = ["ReportBatchItemFailures"]
 }
 
-# 5. API Gateway
+# API Gateway v2
 resource "aws_apigatewayv2_api" "upload_api" {
   name          = "image-processor-api-${var.environment}"
   protocol_type = "HTTP"
@@ -83,12 +85,6 @@ resource "aws_apigatewayv2_api" "upload_api" {
     allow_origins = ["*"]
     allow_headers = ["content-type"]
   }
-}
-
-resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.upload_api.id
-  name        = "$default"
-  auto_deploy = true
 }
 
 resource "aws_apigatewayv2_integration" "lambda_integration" {
@@ -113,6 +109,49 @@ resource "aws_lambda_permission" "apigw_lambda" {
   source_arn    = "${aws_apigatewayv2_api.upload_api.execution_arn}/*/*"
 }
 
+# Grupos de CloudWatch Logs
+resource "aws_cloudwatch_log_group" "upload_log_group" {
+  name              = "/aws/lambda/${aws_lambda_function.upload_lambda.function_name}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "crop_log_group" {
+  name              = "/aws/lambda/${aws_lambda_function.crop_lambda.function_name}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "api_gw_log_group" {
+  name              = "/aws/apigateway/image-processor-api-${var.environment}"
+  retention_in_days = 14
+}
+
+# Configuración del Stage del API Gateway (Logs y Throttling)
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.upload_api.id
+  name        = "$default"
+  auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gw_log_group.arn
+    format = jsonencode({
+      requestId               = "$context.requestId"
+      sourceIp                = "$context.identity.sourceIp"
+      requestTime             = "$context.requestTime"
+      httpMethod              = "$context.httpMethod"
+      routeKey                = "$context.routeKey"
+      status                  = "$context.status"
+      responseLength          = "$context.responseLength"
+      integrationErrorMessage = "$context.integrationErrorMessage"
+    })
+  }
+
+  default_route_settings {
+    throttling_burst_limit = 10000
+    throttling_rate_limit  = 10000
+  }
+}
+
+# URL pública generada
 output "api_gateway_url" {
   value = aws_apigatewayv2_stage.default.invoke_url
 }
